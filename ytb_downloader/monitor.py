@@ -3,10 +3,10 @@
 Serves a dashboard at http://localhost:PORT that shows download progress
 for all categories with progress bars, logs, and stall detection.
 """
+
 import http.server
 import json
 import os
-import sys
 from pathlib import Path
 
 PORT = int(os.environ.get("MONITOR_PORT", "8080"))
@@ -65,11 +65,11 @@ def serve(port: int | None = None, host: str | None = None) -> None:
     bind_port = port or PORT
     server = http.server.HTTPServer((bind_host, bind_port), Handler)
     url = f"http://localhost:{bind_port}"
-    print(f"\n{'='*50}")
-    print(f"  ytb-downloader 监控面板")
+    print(f"\n{'=' * 50}")
+    print("  ytb-downloader 监控面板")
     print(f"  {url}")
-    print(f"{'='*50}")
-    print(f"  Ctrl+C 退出\n")
+    print(f"{'=' * 50}")
+    print("  Ctrl+C 退出\n")
 
     try:
         server.serve_forever()

@@ -3,12 +3,12 @@
 Writes/reads a JSON file that the web monitor reads in real-time.
 Write throttling batches disk writes to reduce I/O.
 """
-import json
+
 import datetime
+import glob
+import json
 import os
 import time
-import glob
-
 
 STATE_FILE = "download_state.json"
 _WRITE_INTERVAL = 2.0  # seconds between disk writes
@@ -33,8 +33,11 @@ def init_state(config: dict) -> dict:
         },
         "categories": {},
         "current": {
-            "category": "", "video_id": "", "title": "",
-            "status": "initializing", "message": "",
+            "category": "",
+            "video_id": "",
+            "title": "",
+            "status": "initializing",
+            "message": "",
         },
         "config": _summarize_config(config),
         "log": [],
@@ -93,7 +96,7 @@ def load_state() -> dict | None:
     """Load state from file (used by web monitor)."""
     if os.path.exists(STATE_FILE):
         try:
-            return json.loads(open(STATE_FILE, "r", encoding="utf-8").read())
+            return json.loads(open(STATE_FILE, encoding="utf-8").read())
         except Exception:
             return None
     return None
@@ -161,10 +164,12 @@ def add_log(state: dict | None, message: str) -> None:
     """Append a log entry."""
     if state is None:
         return
-    state["log"].append({
-        "time": datetime.datetime.now().isoformat(),
-        "message": message,
-    })
+    state["log"].append(
+        {
+            "time": datetime.datetime.now().isoformat(),
+            "message": message,
+        }
+    )
     if len(state["log"]) > _MAX_LOG:
         state["log"] = state["log"][-_MAX_LOG:]
     _write(state)

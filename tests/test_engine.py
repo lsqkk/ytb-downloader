@@ -2,19 +2,18 @@
 
 Uses unittest.mock to avoid real subprocess calls to yt-dlp and ytb API.
 """
+
 import json
 import subprocess
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-import pytest
-
-from ytb_downloader.engine import DownloadEngine, download_single, _sanitize, _extract_video_id
-
+from ytb_downloader.engine import DownloadEngine, _extract_video_id, _sanitize, download_single
 
 # ---------------------------------------------------------------------------
 # Unit: _sanitize
 # ---------------------------------------------------------------------------
+
 
 class TestSanitize:
     def test_basic(self):
@@ -34,6 +33,7 @@ class TestSanitize:
 # Unit: _extract_video_id
 # ---------------------------------------------------------------------------
 
+
 class TestExtractVideoId:
     def test_standard_format(self):
         assert _extract_video_id("0001_aaaaaaaaaaa.mp4") == "aaaaaaaaaaa"
@@ -51,6 +51,7 @@ class TestExtractVideoId:
 # ---------------------------------------------------------------------------
 # DownloadEngine: _build_base_cmd
 # ---------------------------------------------------------------------------
+
 
 class TestBuildBaseCmd:
     def test_no_proxy(self):
@@ -73,6 +74,7 @@ class TestBuildBaseCmd:
 # ---------------------------------------------------------------------------
 # DownloadEngine: _scan_existing
 # ---------------------------------------------------------------------------
+
 
 class TestScanExisting:
     def test_empty_dir(self, tmp_path):
@@ -119,19 +121,28 @@ class TestScanExisting:
 # DownloadEngine: _search_videos (mocked)
 # ---------------------------------------------------------------------------
 
+
 class TestSearchVideos:
     def _make_result(self, returncode: float = 0, stdout: str = "", stderr: str = ""):
         return subprocess.CompletedProcess(
-            args=[], returncode=returncode,
-            stdout=stdout, stderr=stderr,
+            args=[],
+            returncode=returncode,
+            stdout=stdout,
+            stderr=stderr,
         )
 
     @patch("ytb_downloader.engine.subprocess.run")
     def test_search_success(self, mock_run):
-        mock_run.return_value = self._make_result(stdout=json.dumps({
-            "id": "aaaaaaaaaaa", "title": "Test Video",
-            "duration": 120, "webpage_url": "https://youtube.com/watch?v=aaaaaaaaaaa",
-        }))
+        mock_run.return_value = self._make_result(
+            stdout=json.dumps(
+                {
+                    "id": "aaaaaaaaaaa",
+                    "title": "Test Video",
+                    "duration": 120,
+                    "webpage_url": "https://youtube.com/watch?v=aaaaaaaaaaa",
+                }
+            )
+        )
         engine = DownloadEngine({"categories": [], "max_duration": 600})
         results = engine._search_videos("test query")
         assert len(results) == 1
@@ -140,9 +151,15 @@ class TestSearchVideos:
 
     @patch("ytb_downloader.engine.subprocess.run")
     def test_search_duration_filter(self, mock_run):
-        mock_run.return_value = self._make_result(stdout=json.dumps({
-            "id": "bbbbbbbbbbb", "title": "Long Video", "duration": 900,
-        }))
+        mock_run.return_value = self._make_result(
+            stdout=json.dumps(
+                {
+                    "id": "bbbbbbbbbbb",
+                    "title": "Long Video",
+                    "duration": 900,
+                }
+            )
+        )
         engine = DownloadEngine({"categories": [], "max_duration": 600})
         results = engine._search_videos("long video")
         # Duration exceeds max_duration, should be filtered out
@@ -150,9 +167,15 @@ class TestSearchVideos:
 
     @patch("ytb_downloader.engine.subprocess.run")
     def test_search_duration_zero_disables_filter(self, mock_run):
-        mock_run.return_value = self._make_result(stdout=json.dumps({
-            "id": "ccccccccccc", "title": "Long Video", "duration": 900,
-        }))
+        mock_run.return_value = self._make_result(
+            stdout=json.dumps(
+                {
+                    "id": "ccccccccccc",
+                    "title": "Long Video",
+                    "duration": 900,
+                }
+            )
+        )
         engine = DownloadEngine({"categories": [], "max_duration": 0})
         results = engine._search_videos("long video")
         assert len(results) == 1
@@ -162,9 +185,15 @@ class TestSearchVideos:
         mock_run.side_effect = [
             self._make_result(returncode=1, stderr="Server error"),
             self._make_result(returncode=1, stderr="Server error"),
-            self._make_result(stdout=json.dumps({
-                "id": "ddddddddddd", "title": "Retry Video", "duration": 60,
-            })),
+            self._make_result(
+                stdout=json.dumps(
+                    {
+                        "id": "ddddddddddd",
+                        "title": "Retry Video",
+                        "duration": 60,
+                    }
+                )
+            ),
         ]
         engine = DownloadEngine({"categories": [], "search_retries": 3})
         results = engine._search_videos("retry query")
@@ -181,10 +210,12 @@ class TestSearchVideos:
 
     @patch("ytb_downloader.engine.subprocess.run")
     def test_search_multiple_results(self, mock_run):
-        lines = "\n".join([
-            json.dumps({"id": v, "title": f"Video {v}", "duration": 60})
-            for v in ["v1id1111111", "v2id2222222", "v3id3333333"]
-        ])
+        lines = "\n".join(
+            [
+                json.dumps({"id": v, "title": f"Video {v}", "duration": 60})
+                for v in ["v1id1111111", "v2id2222222", "v3id3333333"]
+            ]
+        )
         mock_run.return_value = self._make_result(stdout=lines)
         engine = DownloadEngine({"categories": [], "max_duration": 600})
         results = engine._search_videos("multi query")
@@ -202,10 +233,14 @@ class TestSearchVideos:
 # DownloadEngine: _download_video (mocked)
 # ---------------------------------------------------------------------------
 
+
 class TestDownloadVideo:
     def _make_result(self, returncode: float = 0, stderr: str = ""):
         return subprocess.CompletedProcess(
-            args=[], returncode=returncode, stdout="", stderr=stderr,
+            args=[],
+            returncode=returncode,
+            stdout="",
+            stderr=stderr,
         )
 
     VIDEO = {"id": "testvid12345", "url": "https://youtube.com/watch?v=testvid12345"}
@@ -246,9 +281,7 @@ class TestDownloadVideo:
 
     @patch("ytb_downloader.engine.subprocess.run")
     def test_download_private_video(self, mock_run):
-        mock_run.return_value = self._make_result(
-            returncode=1, stderr="Private video"
-        )
+        mock_run.return_value = self._make_result(returncode=1, stderr="Private video")
         engine = DownloadEngine({"categories": [], "download_retries": 3})
         result = engine._download_video(Path("/tmp"), self.VIDEO, 1)
         assert result is False
@@ -275,11 +308,15 @@ class TestDownloadVideo:
 # download_single (standalone function)
 # ---------------------------------------------------------------------------
 
+
 class TestDownloadSingle:
     @patch("ytb_downloader.engine.subprocess.run")
     def test_success(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr="",
+            args=[],
+            returncode=0,
+            stdout="",
+            stderr="",
         )
         result = download_single("https://youtube.com/watch?v=test123")
         assert result is True
@@ -287,7 +324,10 @@ class TestDownloadSingle:
     @patch("ytb_downloader.engine.subprocess.run")
     def test_failure(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=1, stdout="", stderr="Error",
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr="Error",
         )
         result = download_single("https://youtube.com/watch?v=test123")
         assert result is False
@@ -301,7 +341,10 @@ class TestDownloadSingle:
     @patch("ytb_downloader.engine.subprocess.run")
     def test_uses_proxy(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr="",
+            args=[],
+            returncode=0,
+            stdout="",
+            stderr="",
         )
         download_single("https://youtube.com/watch?v=test123", proxy="http://p:7890")
         cmd = mock_run.call_args[0][0]

@@ -2,6 +2,7 @@
 
 Orchestrates parallel category downloads with search, download, retry, and state tracking.
 """
+
 import concurrent.futures
 import json
 import logging
@@ -48,7 +49,7 @@ def _sanitize_search_query(query: str) -> str:
     sanitized = sanitized.replace(":", " ")
     sanitized = sanitized.replace("\n", " ").replace("\r", " ")
     # YouTube search ignores leading/trailing special chars, just trim them
-    sanitized = sanitized.strip('"\'')
+    sanitized = sanitized.strip("\"'")
     return sanitized
 
 
@@ -103,14 +104,14 @@ class DownloadEngine:
             "  Workers    : %d\n"
             "  Proxy      : %s\n"
             "  Output     : %s",
-            len(categories), self.max_workers, self.proxy or "none", self.output_dir,
+            len(categories),
+            self.max_workers,
+            self.proxy or "none",
+            self.output_dir,
         )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            fut_map = {
-                pool.submit(self._process_category, cat): cat
-                for cat in categories
-            }
+            fut_map = {pool.submit(self._process_category, cat): cat for cat in categories}
             done, _ = concurrent.futures.wait(fut_map.keys())
             for fut in done:
                 cat = fut_map[fut]
@@ -142,15 +143,16 @@ class DownloadEngine:
         search_query = f"ytsearch{max_results}:{query}"
         cmd = [
             *self._build_base_cmd(),
-            "--flat-playlist", "--dump-json", "--no-warnings",
-            "--retries", "10",
+            "--flat-playlist",
+            "--dump-json",
+            "--no-warnings",
+            "--retries",
+            "10",
             search_query,
         ]
         for attempt in range(self.search_retries):
             try:
-                result = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=SEARCH_TIMEOUT
-                )
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=SEARCH_TIMEOUT)
                 videos = []
                 if result.returncode != 0 and not result.stdout.strip():
                     raise ConnectionError(result.stderr.strip()[:STDERR_TRUNCATE])
@@ -164,12 +166,14 @@ class DownloadEngine:
                         title = data.get("title", "")
                         if self.max_duration > 0 and duration > self.max_duration:
                             continue
-                        videos.append({
-                            "id": vid_id,
-                            "title": title,
-                            "url": f"https://www.youtube.com/watch?v={vid_id}",
-                            "duration": duration,
-                        })
+                        videos.append(
+                            {
+                                "id": vid_id,
+                                "title": title,
+                                "url": f"https://www.youtube.com/watch?v={vid_id}",
+                                "duration": duration,
+                            }
+                        )
                     except json.JSONDecodeError:
                         continue
                 return videos
@@ -196,12 +200,18 @@ class DownloadEngine:
             return True
         cmd = [
             *self._build_base_cmd(),
-            "-f", self.video_format,
-            "--output", str(filepath),
-            "--max-filesize", self.max_filesize,
-            "--merge-output-format", "mp4",
-            "--retries", "10",
-            "--fragment-retries", "10",
+            "-f",
+            self.video_format,
+            "--output",
+            str(filepath),
+            "--max-filesize",
+            self.max_filesize,
+            "--merge-output-format",
+            "mp4",
+            "--retries",
+            "10",
+            "--fragment-retries",
+            "10",
             "--no-playlist",
             video["url"],
         ]
@@ -258,9 +268,7 @@ class DownloadEngine:
     def _save_downloaded(self, category_dir: Path, ids: set[str]) -> None:
         """Save downloaded IDs to tracking file."""
         track_file = category_dir / "_downloaded.json"
-        track_file.write_text(
-            json.dumps({"ids": sorted(ids)}, ensure_ascii=False)
-        )
+        track_file.write_text(json.dumps({"ids": sorted(ids)}, ensure_ascii=False))
 
     def _process_category(self, cat: dict) -> None:
         """Process a single category: search + download."""
@@ -274,8 +282,9 @@ class DownloadEngine:
 
         st.set_category_state(self.state, name, status="running", downloaded=current_count)
         st.set_overall(self.state, current_category=name)
-        st.set_current(self.state, category=name, status="scanning",
-                       message=f"已有 {current_count} 个视频")
+        st.set_current(
+            self.state, category=name, status="scanning", message=f"已有 {current_count} 个视频"
+        )
         st.add_log(self.state, f"[{name}] 开始处理 ({current_count}/{target})")
 
         logger.info("")
@@ -286,10 +295,13 @@ class DownloadEngine:
 
         if current_count >= target:
             logger.info("  [OK] Already meets target, skipping.")
-            st.set_category_state(self.state, name, status="completed",
-                                  downloaded=current_count)
-            st.set_current(self.state, category=name, status="completed",
-                           message=f"已有 {current_count} 个视频")
+            st.set_category_state(self.state, name, status="completed", downloaded=current_count)
+            st.set_current(
+                self.state,
+                category=name,
+                status="completed",
+                message=f"已有 {current_count} 个视频",
+            )
             st.add_log(self.state, f"[{name}] 已有 {current_count} 个视频，跳过")
             return
 
@@ -306,11 +318,11 @@ class DownloadEngine:
                 if needed <= 0:
                     break
                 search_count = min(SEARCH_RESULTS_PER_ROUND, needed * 3)
-                logger.info("  [Round %d] Searching: \"%s\" (need %d)...",
-                            round_num, query, needed)
+                logger.info('  [Round %d] Searching: "%s" (need %d)...', round_num, query, needed)
 
-                st.set_current(self.state, category=name, status="searching",
-                               message=f"搜索: {query[:40]}")
+                st.set_current(
+                    self.state, category=name, status="searching", message=f"搜索: {query[:40]}"
+                )
 
                 results = self._search_videos(query, max_results=search_count)
                 new_count = 0
@@ -327,10 +339,11 @@ class DownloadEngine:
                 logger.info("  [INFO] No new videos in round %d, stopping.", round_num)
                 break
 
-            logger.info("  [Round %d] Total: %d/%d",
-                        round_num, current_count + len(all_new_videos), target)
+            logger.info(
+                "  [Round %d] Total: %d/%d", round_num, current_count + len(all_new_videos), target
+            )
 
-        all_new_videos = all_new_videos[:target - current_count]
+        all_new_videos = all_new_videos[: target - current_count]
 
         if not all_new_videos:
             logger.info("  No new videos found.")
@@ -345,12 +358,16 @@ class DownloadEngine:
         for i, video in enumerate(all_new_videos):
             idx = base_index + i + 1
             title_short = video["title"][:50]
-            logger.info("  [%d/%d] Downloading %s - %s...",
-                        idx, target, video["id"], title_short)
+            logger.info("  [%d/%d] Downloading %s - %s...", idx, target, video["id"], title_short)
 
-            st.set_current(self.state, category=name, video_id=video["id"],
-                           title=title_short, status="downloading",
-                           message=f"{idx}/{target}")
+            st.set_current(
+                self.state,
+                category=name,
+                video_id=video["id"],
+                title=title_short,
+                status="downloading",
+                message=f"{idx}/{target}",
+            )
 
             ok = self._download_video(category_dir, video, idx)
             if ok:
@@ -360,9 +377,9 @@ class DownloadEngine:
             else:
                 failed += 1
 
-            st.set_category_state(self.state, name,
-                                  downloaded=current_count + successful,
-                                  failed=failed)
+            st.set_category_state(
+                self.state, name, downloaded=current_count + successful, failed=failed
+            )
 
             if (i + 1) % PROGRESS_INTERVAL == 0:
                 total = current_count + successful
@@ -374,10 +391,8 @@ class DownloadEngine:
         total = current_count + successful
         logger.info("  [OK] Done: %d/%d (failed: %d)", total, target, failed)
         status = "completed" if total >= target else "partial"
-        st.set_category_state(self.state, name, downloaded=total,
-                              failed=failed, status=status)
-        st.set_current(self.state, category=name, status="completed",
-                       message=f"{total}/{target}")
+        st.set_category_state(self.state, name, downloaded=total, failed=failed, status=status)
+        st.set_current(self.state, category=name, status="completed", message=f"{total}/{target}")
         st.add_log(self.state, f"[{name}] 完成 ({total}/{target}, fail={failed})")
 
 
@@ -385,25 +400,39 @@ class DownloadEngine:
 # Standalone single-video download (for `dl` command)
 # ---------------------------------------------------------------------------
 
-def download_single(url: str, output_dir: str = "downloads",
-                    proxy: str = "", cookies: str = "cookies.txt",
-                    video_format: str = "bestvideo[height<=720]+bestaudio/best[height<=720]",
-                    max_filesize: str = "300M") -> bool:
+
+def download_single(
+    url: str,
+    output_dir: str = "downloads",
+    proxy: str = "",
+    cookies: str = "cookies.txt",
+    video_format: str = "bestvideo[height<=720]+bestaudio/best[height<=720]",
+    max_filesize: str = "300M",
+) -> bool:
     """Download a single video by URL. Returns True on success."""
     cmd = [YTDLP_BIN]
     if proxy:
         cmd.extend(["--proxy", proxy])
-    cmd.extend([
-        "--cookies", cookies,
-        "-f", video_format,
-        "--max-filesize", max_filesize,
-        "--merge-output-format", "mp4",
-        "--retries", "10",
-        "--fragment-retries", "10",
-        "--no-playlist",
-        "-o", os.path.join(output_dir, "%(title).50s_%(id)s.%(ext)s"),
-        url,
-    ])
+    cmd.extend(
+        [
+            "--cookies",
+            cookies,
+            "-f",
+            video_format,
+            "--max-filesize",
+            max_filesize,
+            "--merge-output-format",
+            "mp4",
+            "--retries",
+            "10",
+            "--fragment-retries",
+            "10",
+            "--no-playlist",
+            "-o",
+            os.path.join(output_dir, "%(title).50s_%(id)s.%(ext)s"),
+            url,
+        ]
+    )
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=DOWNLOAD_TIMEOUT)
         if result.returncode == 0:
@@ -422,6 +451,7 @@ def download_single(url: str, output_dir: str = "downloads",
 # ---------------------------------------------------------------------------
 # Legacy wrapper (keeps backward compat with existing code)
 # ---------------------------------------------------------------------------
+
 
 def start(config: dict) -> None:
     """Legacy wrapper — creates an engine and starts it."""

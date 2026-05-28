@@ -1,4 +1,5 @@
 """Configuration loader for ytb-downloader."""
+
 import os
 from pathlib import Path
 from typing import Any

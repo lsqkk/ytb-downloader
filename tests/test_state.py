@@ -1,12 +1,9 @@
 """Tests for the state module."""
+
 import json
 import os
-import tempfile
-
-import pytest
 
 from ytb_downloader import state as st
-
 
 SAMPLE_CONFIG = {
     "workers": 3,
@@ -34,7 +31,7 @@ def test_init_state_counts():
 
 def test_init_state_starts_pending():
     state = st.init_state(SAMPLE_CONFIG)
-    for name, cat in state["categories"].items():
+    for _name, cat in state["categories"].items():
         assert cat["status"] in ("pending", "completed")
         assert cat["downloaded"] >= 0
         assert cat["failed"] == 0
@@ -49,8 +46,14 @@ def test_set_category_state():
 
 def test_set_current():
     state = st.init_state(SAMPLE_CONFIG)
-    st.set_current(state, category="cat_a", video_id="abc123",
-                   title="Test Video", status="downloading", message="5/10")
+    st.set_current(
+        state,
+        category="cat_a",
+        video_id="abc123",
+        title="Test Video",
+        status="downloading",
+        message="5/10",
+    )
     assert state["current"]["category"] == "cat_a"
     assert state["current"]["video_id"] == "abc123"
     assert state["current"]["message"] == "5/10"
@@ -89,9 +92,9 @@ def test_state_file_created():
     if os.path.exists(state_file):
         os.unlink(state_file)
     try:
-        state = st.init_state(SAMPLE_CONFIG)
+        st.init_state(SAMPLE_CONFIG)
         assert os.path.exists(state_file)
-        with open(state_file, "r", encoding="utf-8") as f:
+        with open(state_file, encoding="utf-8") as f:
             data = json.load(f)
         assert data["overall"]["total_categories"] == 3
     finally:
@@ -104,7 +107,7 @@ def test_load_state():
     if os.path.exists(state_file):
         os.unlink(state_file)
     try:
-        state = st.init_state(SAMPLE_CONFIG)
+        st.init_state(SAMPLE_CONFIG)
         loaded = st.load_state()
         assert loaded is not None
         assert loaded["overall"]["total_target"] == 35
@@ -136,11 +139,9 @@ def test_init_state_with_existing_files(tmp_path):
     cat_dir.mkdir(parents=True)
     # Create some fake mp4 files
     for i in range(3):
-        (cat_dir / f"000{i+1}_abc{i}.mp4").write_text("fake")
+        (cat_dir / f"000{i + 1}_abc{i}.mp4").write_text("fake")
     # Create _downloaded.json
-    (cat_dir / "_downloaded.json").write_text(
-        json.dumps({"ids": ["abc1", "abc2", "abc3"]})
-    )
+    (cat_dir / "_downloaded.json").write_text(json.dumps({"ids": ["abc1", "abc2", "abc3"]}))
 
     config = {
         "workers": 3,

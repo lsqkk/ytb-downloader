@@ -1,4 +1,5 @@
 """pytest configuration: ensure tests run from the project root."""
+
 import os
 import sys
 

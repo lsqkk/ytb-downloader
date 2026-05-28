@@ -8,11 +8,11 @@ Usage:
     ytb-downloader list           # List categories
     ytb-downloader check          # Validate config
 """
+
 import argparse
 import logging
 import os
 import sys
-from pathlib import Path
 
 from . import __version__
 from .config import load_config, validate_config
@@ -33,10 +33,12 @@ def _setup_logging(log_path: str | None = None) -> None:
     if log_path:
         fh = logging.FileHandler(log_path, mode="a", encoding="utf-8")
         fh.setLevel(logging.DEBUG)
-        fh.setFormatter(logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(message)s",
-            datefmt="%H:%M:%S",
-        ))
+        fh.setFormatter(
+            logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(message)s",
+                datefmt="%H:%M:%S",
+            )
+        )
         handlers.append(fh)
 
     logging.basicConfig(level=logging.INFO, handlers=handlers, force=True)
@@ -45,10 +47,10 @@ def _setup_logging(log_path: str | None = None) -> None:
 def _setup_stdio() -> None:
     """Configure stdout for UTF-8 on Windows."""
     if sys.platform == "win32":
-        try:
+        import contextlib
+
+        with contextlib.suppress(AttributeError):
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        except AttributeError:
-            pass
 
 
 def cmd_start(args: argparse.Namespace) -> None:
@@ -75,13 +77,12 @@ def cmd_start(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     # Setup logging with file output
-    log_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "download_log.txt"
-    )
+    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "download_log.txt")
     log_path = os.path.abspath(log_path)
     _setup_logging(log_path)
 
     from .engine import start as engine_start
+
     engine_start(config)
 
 
@@ -96,6 +97,7 @@ def cmd_dl(args: argparse.Namespace) -> None:
     output_dir = args.output or config.get("output_dir", "downloads")
 
     from .engine import download_single
+
     os.makedirs(output_dir, exist_ok=True)
     success = download_single(
         args.url,
@@ -109,6 +111,7 @@ def cmd_dl(args: argparse.Namespace) -> None:
 def cmd_monitor(args: argparse.Namespace) -> None:
     """Start the web monitor."""
     from .monitor import serve
+
     serve(port=args.port)
 
 
@@ -127,9 +130,12 @@ def cmd_status(args: argparse.Namespace) -> None:
     running = sum(1 for c in cats.values() if c.get("status") == "running")
     failed = sum(c.get("failed", 0) for c in cats.values())
 
-    print(f"ytb-downloader 状态")
+    print("ytb-downloader 状态")
     print(f"  Status   : {'Running' if o.get('is_running') else 'Stopped'}")
-    print(f"  Progress : {total_dl}/{o.get('total_target', 0)} ({completed}/{len(cats)} categories)")
+    cats_count = len(cats)
+    print(
+        f"  Progress : {total_dl}/{o.get('total_target', 0)} ({completed}/{cats_count} categories)"
+    )
     print(f"  Failed   : {failed}")
     print(f"  Active   : {running} workers")
     print()
@@ -190,7 +196,7 @@ def cmd_check(args: argparse.Namespace) -> None:
         if os.path.exists(cookies_path):
             print(f"  Cookies file: exists ({os.path.getsize(cookies_path)} bytes)")
         else:
-            print(f"  Cookies file: NOT FOUND — YouTube will block downloads")
+            print("  Cookies file: NOT FOUND — YouTube will block downloads")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -207,7 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("-c", "--config", default=None, help="Config file path")
     p_start.add_argument("-w", "--workers", type=int, default=None, help="Parallel workers")
     p_start.add_argument("-p", "--proxy", default=None, help="Proxy URL")
-    p_start.add_argument("-l", "--limit", type=int, default=None, help="Override target per category")
+    p_start.add_argument("-l", "--limit", type=int, default=None, help="Override target per cat")
 
     # dl (single video download)
     p_dl = sub.add_parser("dl", help="Download a single video by URL")

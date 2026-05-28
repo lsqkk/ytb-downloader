@@ -1,13 +1,9 @@
 """Tests for the config module."""
-import json
+
 import os
 import tempfile
-from pathlib import Path
 
-import pytest
-
-from ytb_downloader.config import load_config, validate_config, get_search_queries
-
+from ytb_downloader.config import get_search_queries, load_config, validate_config
 
 SAMPLE_YAML = """
 proxy: "http://127.0.0.1:7890"
@@ -29,9 +25,7 @@ categories:
 
 
 def test_load_config_from_file():
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
         f.write(SAMPLE_YAML)
         tmp_path = f.name
 
@@ -64,9 +58,7 @@ categories:
     target: 5
     queries: ["query"]
 """
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
         f.write(minimal)
         tmp_path = f.name
 

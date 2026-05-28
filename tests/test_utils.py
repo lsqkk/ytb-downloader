@@ -1,8 +1,8 @@
 """Tests for utility functions in engine.py."""
-import json
-from pathlib import Path
 
-from ytb_downloader.engine import _sanitize, DownloadEngine
+import json
+
+from ytb_downloader.engine import DownloadEngine, _sanitize
 
 
 def _make_engine():
@@ -39,9 +39,7 @@ def test_scan_existing_with_files(tmp_path):
 
 def test_scan_existing_tracked_json(tmp_path):
     """_downloaded.json should be read properly."""
-    (tmp_path / "_downloaded.json").write_text(
-        json.dumps({"ids": ["abc123defgh", "ijk456lmnop"]})
-    )
+    (tmp_path / "_downloaded.json").write_text(json.dumps({"ids": ["abc123defgh", "ijk456lmnop"]}))
     engine = _make_engine()
     ids, count = engine._scan_existing(tmp_path)
     assert count == 2
@@ -52,9 +50,7 @@ def test_scan_existing_tracked_json(tmp_path):
 def test_scan_existing_dedup(tmp_path):
     """Files that are both on disk and in json should be counted once."""
     (tmp_path / "0001_aaaaaaaaaaa.mp4").write_text("fake")
-    (tmp_path / "_downloaded.json").write_text(
-        json.dumps({"ids": ["aaaaaaaaaaa", "bbbbbbbbbbb"]})
-    )
+    (tmp_path / "_downloaded.json").write_text(json.dumps({"ids": ["aaaaaaaaaaa", "bbbbbbbbbbb"]}))
     engine = _make_engine()
     ids, count = engine._scan_existing(tmp_path)
     # 1 file on disk + 1 file only in json = 2 unique IDs
