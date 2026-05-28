@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 PORT = int(os.environ.get("MONITOR_PORT", "8080"))
-HOST = os.environ.get("MONITOR_HOST", "0.0.0.0")
+HOST = os.environ.get("MONITOR_HOST", "127.0.0.1")
 STATE_FILE = "download_state.json"
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"

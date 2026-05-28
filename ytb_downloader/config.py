@@ -1,6 +1,7 @@
 """Configuration loader for ytb-downloader."""
 
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,14 @@ DEFAULTS: dict[str, Any] = {
     "download_retries": 5,
     "categories": [],
 }
+
+
+def _sanitize(name: str) -> str:
+    """Sanitize a string for use as a folder name."""
+    s = name.strip().lower()
+    s = re.sub(r"[^\w\s-]", "", s)
+    s = re.sub(r"[\s]+", "_", s)
+    return s or "unnamed"
 
 
 def load_config(path: str | Path | None = None) -> dict[str, Any]:

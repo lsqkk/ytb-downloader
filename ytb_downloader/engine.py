@@ -7,14 +7,12 @@ import concurrent.futures
 import json
 import logging
 import os
-import re
 import subprocess
-import sys
 import time
 from pathlib import Path
 
 from . import state as st
-from .config import get_search_queries
+from .config import _sanitize, get_search_queries
 
 logger = logging.getLogger(__name__)
 
@@ -32,14 +30,6 @@ SEARCH_RETRY_WAIT = 3
 DOWNLOAD_RETRY_WAIT = 5
 STDERR_TRUNCATE = 200
 PROGRESS_INTERVAL = 10
-
-
-def _sanitize(name: str) -> str:
-    """Sanitize a string for use as a folder name."""
-    s = name.strip().lower()
-    s = re.sub(r"[^\w\s-]", "", s)
-    s = re.sub(r"[\s]+", "_", s)
-    return s
 
 
 def _sanitize_search_query(query: str) -> str:
@@ -110,19 +100,20 @@ class DownloadEngine:
             self.output_dir,
         )
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            fut_map = {pool.submit(self._process_category, cat): cat for cat in categories}
-            done, _ = concurrent.futures.wait(fut_map.keys())
-            for fut in done:
-                cat = fut_map[fut]
-                try:
-                    fut.result()
-                except KeyboardInterrupt:
-                    logger.info("Interrupted. Exiting.")
-                    sys.exit(1)
-                except Exception as e:
-                    logger.error("Failed processing '%s': %s", cat["name"], e)
-                    st.add_log(self.state, f"[ERROR] {cat['name']}: {e}")
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+                fut_map = {pool.submit(self._process_category, cat): cat for cat in categories}
+                done, _ = concurrent.futures.wait(fut_map.keys())
+                for fut in done:
+                    cat = fut_map[fut]
+                    try:
+                        fut.result()
+                    except Exception as e:
+                        logger.error("Failed processing '%s': %s", cat["name"], e)
+                        st.add_log(self.state, f"[ERROR] {cat['name']}: {e}")
+        except KeyboardInterrupt:
+            logger.info("Interrupted. Shutting down gracefully...")
+            st.add_log(self.state, "下载被用户中断")
 
         st.finalize(self.state)
         st.add_log(self.state, "全部类别处理完成")
@@ -261,7 +252,7 @@ class DownloadEngine:
                 pass
         for f in category_dir.glob("*.mp4"):
             vid_id = _extract_video_id(f.name)
-            if vid_id and len(vid_id) == 11:
+            if vid_id and len(vid_id) >= 5:
                 ids.add(vid_id)
         return ids, len(ids)
 
@@ -410,29 +401,31 @@ def download_single(
     max_filesize: str = "300M",
 ) -> bool:
     """Download a single video by URL. Returns True on success."""
-    cmd = [YTDLP_BIN]
-    if proxy:
-        cmd.extend(["--proxy", proxy])
-    cmd.extend(
-        [
-            "--cookies",
-            cookies,
-            "-f",
-            video_format,
-            "--max-filesize",
-            max_filesize,
-            "--merge-output-format",
-            "mp4",
-            "--retries",
-            "10",
-            "--fragment-retries",
-            "10",
-            "--no-playlist",
-            "-o",
-            os.path.join(output_dir, "%(title).50s_%(id)s.%(ext)s"),
-            url,
-        ]
-    )
+    config = {
+        "proxy": proxy,
+        "cookies": cookies,
+        "output_dir": output_dir,
+        "video_format": video_format,
+        "max_filesize": max_filesize,
+    }
+    engine = DownloadEngine(config)
+    cmd = [
+        *engine._build_base_cmd(),
+        "-f",
+        engine.video_format,
+        "--max-filesize",
+        engine.max_filesize,
+        "--merge-output-format",
+        "mp4",
+        "--retries",
+        "10",
+        "--fragment-retries",
+        "10",
+        "--no-playlist",
+        "-o",
+        os.path.join(output_dir, "%(title).50s_%(id)s.%(ext)s"),
+        url,
+    ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=DOWNLOAD_TIMEOUT)
         if result.returncode == 0:

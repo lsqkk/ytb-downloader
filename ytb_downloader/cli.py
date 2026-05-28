@@ -76,9 +76,10 @@ def cmd_start(args: argparse.Namespace) -> None:
             logger.error("  - %s", e)
         sys.exit(1)
 
-    # Setup logging with file output
-    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "download_log.txt")
-    log_path = os.path.abspath(log_path)
+    # Setup logging with file output in output_dir
+    log_dir = config.get("output_dir", "downloads")
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "download_log.txt")
     _setup_logging(log_path)
 
     from .engine import start as engine_start

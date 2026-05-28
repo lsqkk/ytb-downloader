@@ -26,7 +26,7 @@ class TestSanitize:
         assert _sanitize("Special@#$Chars") == "specialchars"
 
     def test_empty(self):
-        assert _sanitize("") == ""
+        assert _sanitize("") == "unnamed"
 
 
 # ---------------------------------------------------------------------------
@@ -110,8 +110,8 @@ class TestScanExisting:
         assert len(ids) == 2
 
     def test_short_video_id_ignored(self, tmp_path):
-        """Video IDs that are not 11 chars should not be counted."""
-        (tmp_path / "0001_short.mp4").write_text("fake")
+        """Video IDs shorter than 5 chars should not be counted."""
+        (tmp_path / "0001_ab.mp4").write_text("fake")
         engine = DownloadEngine({"categories": []})
         ids, count = engine._scan_existing(tmp_path)
         assert count == 0

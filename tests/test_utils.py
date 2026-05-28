@@ -15,7 +15,7 @@ def test_sanitize():
     assert _sanitize("Special@#$Chars") == "specialchars"
     assert _sanitize("UPPER lower") == "upper_lower"
     assert _sanitize("already_snake") == "already_snake"
-    assert _sanitize("") == ""
+    assert _sanitize("") == "unnamed"
 
 
 def test_scan_existing_empty(tmp_path):

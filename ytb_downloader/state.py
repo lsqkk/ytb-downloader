@@ -8,11 +8,17 @@ import datetime
 import glob
 import json
 import os
+import threading
 import time
+from pathlib import Path
+
+from .config import _sanitize
 
 STATE_FILE = "download_state.json"
 _WRITE_INTERVAL = 2.0  # seconds between disk writes
 _MAX_LOG = 200
+
+_lock = threading.Lock()
 
 
 def init_state(config: dict) -> dict:
@@ -52,7 +58,7 @@ def init_state(config: dict) -> dict:
         name = cat["name"]
         target = cat.get("target", 40)
         total_target += target
-        folder = os.path.join(output_dir, name)
+        folder = os.path.join(output_dir, _sanitize(name))
 
         existing = len(glob.glob(os.path.join(folder, "*.mp4")))
         status = "pending"
@@ -89,6 +95,13 @@ def _summarize_config(config: dict) -> dict:
 def _mask_proxy(proxy: str) -> str:
     if not proxy:
         return "none"
+    # Mask password in http://user:pass@host:port format
+    if "@" in proxy:
+        scheme, _, rest = proxy.partition("://")
+        userinfo, _, hostpart = rest.partition("@")
+        if ":" in userinfo:
+            user = userinfo.split(":", 1)[0]
+            return f"{scheme}://{user}:***@{hostpart}"
     return proxy
 
 
@@ -96,7 +109,7 @@ def load_state() -> dict | None:
     """Load state from file (used by web monitor)."""
     if os.path.exists(STATE_FILE):
         try:
-            return json.loads(open(STATE_FILE, encoding="utf-8").read())
+            return json.loads(Path(STATE_FILE).read_text(encoding="utf-8"))
         except Exception:
             return None
     return None
@@ -104,50 +117,52 @@ def load_state() -> dict | None:
 
 def _write(state: dict) -> None:
     """Atomically write state to JSON file (with throttling)."""
-    meta = state.get("_meta", {})
-    now = time.time()
-    last_write = meta.get("last_write", 0.0)
+    with _lock:
+        meta = state.get("_meta", {})
+        now = time.time()
+        last_write = meta.get("last_write", 0.0)
 
-    if now - last_write < _WRITE_INTERVAL:
-        meta["dirty"] = True
-        return
+        if now - last_write < _WRITE_INTERVAL:
+            meta["dirty"] = True
+            return
 
-    meta["last_write"] = now
-    meta["dirty"] = False
+        meta["last_write"] = now
+        meta["dirty"] = False
 
-    # Strip internal meta before writing
-    clean = {k: v for k, v in state.items() if k != "_meta"}
-    tmp = STATE_FILE + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(clean, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, STATE_FILE)
+        clean = {k: v for k, v in state.items() if k != "_meta"}
+        tmp = STATE_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(clean, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, STATE_FILE)
 
 
 def _flush(state: dict | None) -> None:
     """Force an immediate write, bypassing throttle."""
     if state is None:
         return
-    meta = state.get("_meta", {})
-    meta["last_write"] = 0.0
-    meta["dirty"] = False
-    clean = {k: v for k, v in state.items() if k != "_meta"}
-    tmp = STATE_FILE + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(clean, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, STATE_FILE)
+    with _lock:
+        meta = state.get("_meta", {})
+        meta["last_write"] = 0.0
+        meta["dirty"] = False
+        clean = {k: v for k, v in state.items() if k != "_meta"}
+        tmp = STATE_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(clean, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, STATE_FILE)
 
 
 def set_current(state: dict | None, **kwargs) -> None:
     """Update the 'current download' field."""
     if state is None:
         return
-    state["current"] = {
-        "category": kwargs.get("category", ""),
-        "video_id": kwargs.get("video_id", ""),
-        "title": kwargs.get("title", ""),
-        "status": kwargs.get("status", ""),
-        "message": kwargs.get("message", ""),
-    }
+    with _lock:
+        state["current"] = {
+            "category": kwargs.get("category", ""),
+            "video_id": kwargs.get("video_id", ""),
+            "title": kwargs.get("title", ""),
+            "status": kwargs.get("status", ""),
+            "message": kwargs.get("message", ""),
+        }
     _write(state)
 
 
@@ -155,8 +170,9 @@ def set_category_state(state: dict | None, name: str, **kwargs) -> None:
     """Update fields for a specific category."""
     if state is None:
         return
-    if name in state.get("categories", {}):
-        state["categories"][name].update(kwargs)
+    with _lock:
+        if name in state.get("categories", {}):
+            state["categories"][name].update(kwargs)
     _write(state)
 
 
@@ -164,14 +180,15 @@ def add_log(state: dict | None, message: str) -> None:
     """Append a log entry."""
     if state is None:
         return
-    state["log"].append(
-        {
-            "time": datetime.datetime.now().isoformat(),
-            "message": message,
-        }
-    )
-    if len(state["log"]) > _MAX_LOG:
-        state["log"] = state["log"][-_MAX_LOG:]
+    with _lock:
+        state["log"].append(
+            {
+                "time": datetime.datetime.now().isoformat(),
+                "message": message,
+            }
+        )
+        if len(state["log"]) > _MAX_LOG:
+            state["log"] = state["log"][-_MAX_LOG:]
     _write(state)
 
 
@@ -179,7 +196,8 @@ def set_overall(state: dict | None, **kwargs) -> None:
     """Update overall stats."""
     if state is None:
         return
-    state["overall"].update(kwargs)
+    with _lock:
+        state["overall"].update(kwargs)
     _write(state)
 
 
@@ -187,7 +205,8 @@ def finalize(state: dict | None) -> None:
     """Mark download as complete and flush immediately."""
     if state is None:
         return
-    state["overall"]["is_running"] = False
-    state["current"]["status"] = "completed"
-    state["current"]["message"] = "全部完成"
+    with _lock:
+        state["overall"]["is_running"] = False
+        state["current"]["status"] = "completed"
+        state["current"]["message"] = "全部完成"
     _flush(state)
