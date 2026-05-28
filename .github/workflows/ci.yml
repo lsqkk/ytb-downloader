@@ -68,4 +68,4 @@ jobs:
           pip install bandit
 
       - name: Bandit security scan
-        run: bandit -r ytb_downloader/ -f severity
+        run: bandit -r ytb_downloader/ --severity-level high
