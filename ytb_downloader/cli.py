@@ -1,23 +1,45 @@
 """CLI entry point for ytb-downloader.
 
 Usage:
-    python -m ytb_downloader start          # Start batch download
-    python -m ytb_downloader monitor        # Start web monitor
-    python -m ytb_downloader status         # Show current state
-    python -m ytb_downloader list           # List categories
-    python -m ytb_downloader check          # Validate config
+    ytb-downloader start          # Start batch download
+    ytb-downloader monitor        # Start web monitor
+    ytb-downloader dl <url>       # Download a single video
+    ytb-downloader status         # Show current state
+    ytb-downloader list           # List categories
+    ytb-downloader check          # Validate config
 """
 import argparse
-import json
+import logging
 import os
-import subprocess
 import sys
-import time
 from pathlib import Path
 
 from . import __version__
 from .config import load_config, validate_config
 from .state import load_state
+
+logger = logging.getLogger(__name__)
+
+
+def _setup_logging(log_path: str | None = None) -> None:
+    """Configure logging to stdout and optionally to a file."""
+    handlers: list[logging.Handler] = []
+
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(logging.INFO)
+    console.setFormatter(logging.Formatter("%(message)s"))
+    handlers.append(console)
+
+    if log_path:
+        fh = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(message)s",
+            datefmt="%H:%M:%S",
+        ))
+        handlers.append(fh)
+
+    logging.basicConfig(level=logging.INFO, handlers=handlers, force=True)
 
 
 def _setup_stdio() -> None:
@@ -27,22 +49,6 @@ def _setup_stdio() -> None:
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         except AttributeError:
             pass
-
-
-class TeeOutput:
-    """Duplicate stdout to a log file."""
-    def __init__(self, log_path: str):
-        self.file = open(log_path, "a", encoding="utf-8")
-        self.stdout = sys.stdout
-
-    def write(self, data: str):
-        self.stdout.write(data)
-        self.file.write(data)
-        self.file.flush()
-
-    def flush(self):
-        self.stdout.flush()
-        self.file.flush()
 
 
 def cmd_start(args: argparse.Namespace) -> None:
@@ -63,18 +69,41 @@ def cmd_start(args: argparse.Namespace) -> None:
     # Validate
     errors = validate_config(config)
     if errors:
-        print("Configuration errors:")
+        logger.error("Configuration errors:")
         for e in errors:
-            print(f"  - {e}")
+            logger.error("  - %s", e)
         sys.exit(1)
 
-    # Tee output to log
-    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "download_log.txt")
+    # Setup logging with file output
+    log_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "download_log.txt"
+    )
     log_path = os.path.abspath(log_path)
-    sys.stdout = TeeOutput(log_path)
+    _setup_logging(log_path)
 
     from .engine import start as engine_start
     engine_start(config)
+
+
+def cmd_dl(args: argparse.Namespace) -> None:
+    """Download a single video by URL."""
+    _setup_stdio()
+    _setup_logging()
+
+    config = load_config(args.config)
+    proxy = args.proxy or config.get("proxy", "")
+    cookies = config.get("cookies", "cookies.txt")
+    output_dir = args.output or config.get("output_dir", "downloads")
+
+    from .engine import download_single
+    os.makedirs(output_dir, exist_ok=True)
+    success = download_single(
+        args.url,
+        output_dir=output_dir,
+        proxy=proxy,
+        cookies=cookies,
+    )
+    sys.exit(0 if success else 1)
 
 
 def cmd_monitor(args: argparse.Namespace) -> None:
@@ -139,6 +168,7 @@ def cmd_list(args: argparse.Namespace) -> None:
 
 def cmd_check(args: argparse.Namespace) -> None:
     """Validate the configuration file."""
+    _setup_stdio()
     config = load_config(args.config)
     errors = validate_config(config)
     if errors:
@@ -156,7 +186,6 @@ def cmd_check(args: argparse.Namespace) -> None:
         print(f"  Proxy: {config.get('proxy', 'none')}")
         print(f"  Output: {config.get('output_dir', 'downloads')}")
         print(f"  Cookies: {config.get('cookies', 'cookies.txt')}")
-        # Check cookies
         cookies_path = config.get("cookies", "cookies.txt")
         if os.path.exists(cookies_path):
             print(f"  Cookies file: exists ({os.path.getsize(cookies_path)} bytes)")
@@ -179,6 +208,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("-w", "--workers", type=int, default=None, help="Parallel workers")
     p_start.add_argument("-p", "--proxy", default=None, help="Proxy URL")
     p_start.add_argument("-l", "--limit", type=int, default=None, help="Override target per category")
+
+    # dl (single video download)
+    p_dl = sub.add_parser("dl", help="Download a single video by URL")
+    p_dl.add_argument("url", help="YouTube video URL")
+    p_dl.add_argument("-c", "--config", default=None, help="Config file path")
+    p_dl.add_argument("-p", "--proxy", default=None, help="Proxy URL")
+    p_dl.add_argument("-o", "--output", default=None, help="Output directory")
 
     # monitor
     p_mon = sub.add_parser("monitor", help="Start web monitor")
@@ -204,6 +240,7 @@ def main() -> None:
 
     commands = {
         "start": cmd_start,
+        "dl": cmd_dl,
         "monitor": cmd_monitor,
         "status": cmd_status,
         "list": cmd_list,

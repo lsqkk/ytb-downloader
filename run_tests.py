@@ -21,7 +21,7 @@ def main():
         pass
 
     print(f"Running: {' '.join(cmd)}\n")
-    result = subprocess.run(cmd, cwd=__file__ and None)
+    result = subprocess.run(cmd)
     sys.exit(result.returncode)
 
 

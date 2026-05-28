@@ -1,23 +1,26 @@
 """Shared state for download progress monitoring.
 
 Writes/reads a JSON file that the web monitor reads in real-time.
+Write throttling batches disk writes to reduce I/O.
 """
 import json
 import datetime
 import os
+import time
 import glob
 
 
 STATE_FILE = "download_state.json"
+_WRITE_INTERVAL = 2.0  # seconds between disk writes
+_MAX_LOG = 200
 
 
 def init_state(config: dict) -> dict:
     """Initialize state from config, scanning existing files on disk."""
     output_dir = config.get("output_dir", "downloads")
     categories = config.get("categories", [])
-    target_per_category = 40  # default
 
-    state = {
+    state: dict = {
         "overall": {
             "total_categories": len(categories),
             "completed_categories": 0,
@@ -35,6 +38,7 @@ def init_state(config: dict) -> dict:
         },
         "config": _summarize_config(config),
         "log": [],
+        "_meta": {"last_write": 0.0, "dirty": False},
     }
 
     total_target = 0
@@ -96,10 +100,37 @@ def load_state() -> dict | None:
 
 
 def _write(state: dict) -> None:
-    """Atomically write state to JSON file."""
+    """Atomically write state to JSON file (with throttling)."""
+    meta = state.get("_meta", {})
+    now = time.time()
+    last_write = meta.get("last_write", 0.0)
+
+    if now - last_write < _WRITE_INTERVAL:
+        meta["dirty"] = True
+        return
+
+    meta["last_write"] = now
+    meta["dirty"] = False
+
+    # Strip internal meta before writing
+    clean = {k: v for k, v in state.items() if k != "_meta"}
     tmp = STATE_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
+        json.dump(clean, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, STATE_FILE)
+
+
+def _flush(state: dict | None) -> None:
+    """Force an immediate write, bypassing throttle."""
+    if state is None:
+        return
+    meta = state.get("_meta", {})
+    meta["last_write"] = 0.0
+    meta["dirty"] = False
+    clean = {k: v for k, v in state.items() if k != "_meta"}
+    tmp = STATE_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(clean, f, ensure_ascii=False, indent=2)
     os.replace(tmp, STATE_FILE)
 
 
@@ -134,8 +165,8 @@ def add_log(state: dict | None, message: str) -> None:
         "time": datetime.datetime.now().isoformat(),
         "message": message,
     })
-    if len(state["log"]) > 200:
-        state["log"] = state["log"][-200:]
+    if len(state["log"]) > _MAX_LOG:
+        state["log"] = state["log"][-_MAX_LOG:]
     _write(state)
 
 
@@ -148,10 +179,10 @@ def set_overall(state: dict | None, **kwargs) -> None:
 
 
 def finalize(state: dict | None) -> None:
-    """Mark download as complete."""
+    """Mark download as complete and flush immediately."""
     if state is None:
         return
     state["overall"]["is_running"] = False
     state["current"]["status"] = "completed"
     state["current"]["message"] = "全部完成"
-    _write(state)
+    _flush(state)

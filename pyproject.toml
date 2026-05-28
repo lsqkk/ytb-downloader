@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "ytb-downloader"
+version = "1.0.0"
+description = "Config-driven YouTube batch video downloader and topic collector"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+keywords = ["youtube", "downloader", "batch", "yt-dlp"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+    "yt-dlp>=2024.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/lsqkk/ytb-downloader"
+Repository = "https://github.com/lsqkk/ytb-downloader"
+
+[project.scripts]
+ytb-downloader = "ytb_downloader.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["ytb_downloader*"]
+
+[tool.setuptools.package-data]
+"ytb_downloader" = ["templates/*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+strict = false
+ignore_missing_imports = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
