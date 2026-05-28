@@ -1,0 +1,14 @@
+# YouTube cookies file (Netscape format)
+#
+# How to get:
+# 1. Install a browser extension like "Get cookies.txt" (or "cookies.txt export")
+# 2. Log into YouTube in your browser
+# 3. Export cookies in Netscape format
+# 4. Save as "cookies.txt" in this project root
+#
+# This file is REQUIRED. YouTube blocks downloads without a logged-in session.
+#
+# Example format (do NOT use these fake values):
+# .youtube.com	TRUE	/	TRUE	0	GPS	1
+# .youtube.com	TRUE	/	TRUE	0	VISITOR_INFO1_LIVE	abc123
+# .youtube.com	TRUE	/	TRUE	0	LOGIN_INFO	AFmmF2swRQI...

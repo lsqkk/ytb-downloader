@@ -1,0 +1,65 @@
+# ============================================================
+# ytb-downloader 配置文件
+# ============================================================
+
+# --- 全局设置 ---
+proxy: "http://127.0.0.1:7890"       # HTTP 代理地址（Clash/V2Ray 等）
+cookies: "cookies.txt"                # YouTube 登录 cookies 文件路径
+workers: 3                            # 并行下载的类别数
+output_dir: "downloads"               # 下载根目录
+
+# --- 视频下载设置 ---
+max_duration: 600                     # 最长视频时长（秒），0=不限制
+max_filesize: "300M"                  # 单文件上限
+video_format: "bestvideo[height<=720]+bestaudio/best[height<=720]"  # 画质
+
+# --- 重试设置 ---
+search_retries: 3                     # 搜索失败重试次数
+download_retries: 5                   # 单视频下载重试次数
+
+# --- 类别定义 ---
+# 每个类别需要：
+#   name       - 文件夹名称（英文、字母数字）
+#   target     - 目标视频数量
+#   queries    - YouTube 搜索关键词列表（每轮顺序使用）
+
+categories:
+  - name: doing_aerobics
+    target: 40
+    queries:
+      - "how to do aerobics"
+      - "aerobics workout"
+      - "beginner aerobics exercises"
+      - "aerobics for weight loss at home"
+
+  - name: zumba
+    target: 40
+    queries:
+      - "zumba dance workout"
+      - "zumba for beginners"
+      - "zumba fitness class"
+      - "best zumba songs"
+
+  - name: exercising_arm
+    target: 40
+    queries:
+      - "arm exercises at home"
+      - "arm workout for beginners"
+      - "arm toning exercises"
+      - "bodyweight arm workout"
+
+  - name: exercising_with_an_exercise_ball
+    target: 40
+    queries:
+      - "exercise ball workout"
+      - "stability ball exercises"
+      - "Swiss ball workout for beginners"
+      - "core workout with exercise ball"
+
+  - name: stretching_arm
+    target: 40
+    queries:
+      - "arm stretches"
+      - "shoulder stretches"
+      - "upper body stretching routine"
+      - "arm flexibility exercises"

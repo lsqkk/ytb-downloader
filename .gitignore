@@ -1,0 +1,34 @@
+# Download output
+downloads/
+*.mp4
+*.webm
+*.part
+*.ytdl
+
+# State & logs
+download_state.json
+download_state.json.tmp
+download_log.txt
+monitor_stdout.txt
+
+# Cookies (real one, not the example)
+cookies.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
